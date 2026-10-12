@@ -1,0 +1,22 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python3 -m pip install --upgrade pip
+      - run: python3 -m pip install .
+      - run: python3 tests/test_claims.py
+      - run: python3 tests/test_cli.py
+      - run: claimcheck audit tests/fixtures/overclaim.jsonl --fail-on contradicted || true
