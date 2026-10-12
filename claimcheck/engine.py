@@ -341,9 +341,12 @@ def _evidence_score(claim: Claim, ev: ToolEvent) -> int:
     return 0
 
 
-def verify(claims: list[Claim], events: list[ToolEvent]) -> list[Claim]:
+def verify(claims: list[Claim], events: list[ToolEvent], strict: bool = False) -> list[Claim]:
+    """strict=True requires the evidence to precede the claim in the transcript.
+    A claim made before any tool ran is, at the moment it is made, unsupported."""
     for claim in claims:
-        scored = [(ev, _evidence_score(claim, ev)) for ev in events]
+        pool = [ev for ev in events if ev.index < claim.message_index] if strict else events
+        scored = [(ev, _evidence_score(claim, ev)) for ev in pool]
         matches = [(ev, s) for ev, s in scored if s >= 2]
         if not matches:
             matches = [(ev, s) for ev, s in scored if s >= 1]
@@ -371,10 +374,10 @@ def verify(claims: list[Claim], events: list[ToolEvent]) -> list[Claim]:
     return claims
 
 
-def audit(path: Path) -> dict:
+def audit(path: Path, strict: bool = False) -> dict:
     msgs = parse_session(path)
     events = tool_events(msgs)
-    claims = verify(find_claims(msgs), events)
+    claims = verify(find_claims(msgs), events, strict=strict)
 
     counts = {}
     for c in claims:
@@ -387,6 +390,7 @@ def audit(path: Path) -> dict:
 
     return {
         "session": str(path),
+        "strict": strict,
         "messages": len(msgs),
         "tool_calls": len(events),
         "failed_tool_calls": sum(1 for e in events if not e.ok),

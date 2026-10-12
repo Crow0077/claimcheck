@@ -135,5 +135,34 @@ for name, msgs, expected in CASES:
         for d in r["details"]:
             print("   ", d["status"], "|", d["verb"], "|", d["object"], "|", d["notes"])
 
+# --- strict mode: evidence must precede the claim.
+msgs = [
+    user("deploy it"),
+    {"role": "tool", "name": "terminal", "args": {"command": "deploy app"},
+     "content": json.dumps({"output": "deployed", "exit_code": 0, "error": None})},
+    asst("I deployed the app."),
+]
+with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False) as f:
+    write_session(msgs, Path(f.name))
+r = audit(Path(f.name), strict=True)
+ok = r["counts"].get("verified", 0) == 1
+print(f"[{'PASS' if ok else 'FAIL'}] strict: evidence before claim -> verified, got {r['counts']}")
+failures += 0 if ok else 1
+
+msgs = [
+    user("deploy it"),
+    asst("I deployed the app."),
+    {"role": "tool", "name": "terminal", "args": {"command": "deploy app"},
+     "content": json.dumps({"output": "deployed", "exit_code": 0, "error": None})},
+]
+with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False) as f:
+    write_session(msgs, Path(f.name))
+r_loose = audit(Path(f.name))
+r_strict = audit(Path(f.name), strict=True)
+ok = r_loose["counts"].get("verified", 0) == 1 and r_strict["counts"].get("unverified", 0) == 1
+print(f"[{'PASS' if ok else 'FAIL'}] strict: claim before evidence -> unverified "
+      f"(loose {r_loose['counts']}, strict {r_strict['counts']})")
+failures += 0 if ok else 1
+
 print("TEST PASSED" if failures == 0 else f"{failures} CASES FAILED")
 sys.exit(1 if failures else 0)

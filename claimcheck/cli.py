@@ -85,7 +85,7 @@ def cmd_audit(args):
     if not path.exists():
         print(f"error: {path} does not exist", file=sys.stderr)
         return 2
-    r = audit(path)
+    r = audit(path, strict=args.strict)
     if args.json:
         print(json.dumps(r, indent=2))
     elif args.md:
@@ -153,6 +153,11 @@ def main(argv=None):
 
     p_audit = sub.add_parser("audit", help="audit one session transcript")
     p_audit.add_argument("session", help="path to a .jsonl session transcript")
+    p_audit.add_argument(
+        "--strict",
+        action="store_true",
+        help="require evidence to appear before the claim in the transcript",
+    )
     p_audit.add_argument("--json", action="store_true", help="machine-readable output")
     p_audit.add_argument("--md", action="store_true", help="markdown report")
     p_audit.add_argument(

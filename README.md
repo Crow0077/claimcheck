@@ -47,6 +47,7 @@ python3 -m claimcheck.cli audit session.jsonl
 claimcheck audit session.jsonl              # human report
 claimcheck audit session.jsonl --json       # machine-readable
 claimcheck audit session.jsonl --md         # markdown table
+claimcheck audit session.jsonl --strict     # evidence must precede the claim
 claimcheck scan ~/.hermes/sessions          # every transcript in a directory
 claimcheck explain session.jsonl --finding memory   # evidence trail for one claim
 ```
@@ -59,6 +60,27 @@ claimcheck audit session.jsonl --fail-on contradicted
 
 Exits 1 if any claim is contradicted. Drop this into a CI step or an agent
 pipeline so a run that overclaims cannot be marked successful.
+
+### What `--strict` does
+
+By default a claim counts as verified if *any* tool call in the transcript
+matches it. In strict mode the evidence has to appear **before** the claim.
+That is the difference between:
+
+```
+tool: deploy app -> exit 0
+assistant: "I deployed the app."      # verified, strict
+```
+
+and
+
+```
+assistant: "I deployed the app."      # unverified, strict
+tool: deploy app -> exit 0
+```
+
+The second is the dangerous shape: the agent asserted an outcome before doing
+the work, and if the work then failed, the summary already shipped.
 
 ## Example output
 
@@ -106,15 +128,31 @@ Statuses: `verified`, `partial`, `unverified`, `contradicted`.
 
 ```bash
 python3 tests/test_claims.py
+python3 tests/test_cli.py
 ```
 
-Nine ground-truth scenarios with known answers: an honest agent, a pure
-overclaim, a claim contradicted by a failing command, a false-positive trap
-(successful call whose output contains the words "failed" and "error"), future
-tense, partial evidence, a contradicted state claim, analysis prose, and the
-classic "said it wrote a file but never did".
+`test_claims.py` — eleven ground-truth scenarios with known answers: an honest
+agent, a pure overclaim, a claim contradicted by a failing command, a
+false-positive trap (successful call whose output contains the words "failed"
+and "error"), future tense, negation ("never wrote the file"), partial
+evidence, a contradicted state claim, analysis prose, the classic "said it wrote
+a file but never did", and two strict-mode orderings.
 
-All nine pass.
+`test_cli.py` — nine checks on the gate itself: exit codes for
+`--fail-on`, valid `--json`, markdown table, missing file exits 2, `explain`
+finds the claim, `scan` enumerates a directory.
+
+All pass in CI across Python 3.9–3.14.
+
+## Evidence base — how much to trust these numbers
+
+The example above is a real transcript from this machine. The local sample is
+small: three agent sessions, seven action claims, one contradicted. That is not
+a statistically meaningful overclaim rate, and the README does not claim it is.
+
+What *is* solid is the ground-truth test suite: eleven constructed transcripts
+where the correct answer is known by construction, and the engine gets all
+eleven right. Precision on real prose is the thing still being tuned.
 
 ## Limitations — read these before trusting it
 
